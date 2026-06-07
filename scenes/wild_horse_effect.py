@@ -1,346 +1,269 @@
 """
-Wild Horse Effect — full animation, ~45s.
-Beat map:
-  0-2s    Title fade in
-  2-5s    Terrain + saw draw
-  5-14s   Snake slithers in, crosses saw, gets cut
-  14-23s  Snake coils around saw to fight back
-  23-31s  Coiling tighter — damage radiates
-  31-37s  Snake goes limp / dies
-  37-43s  Wild Horse Effect label
-  43-55s  Lesson: reaction diagram + calm
+Wild Horse Effect — animation continue ~45s.
+
+Scènes enchaînées sans coupure:
+  S1 (0-13s)  : terrain + saw + snake apparaît à gauche, rampe vers la scie, se fait couper
+  S2 (13-26s) : le serpent se love autour de la scie pour combattre — spirale serrée
+  S3 (26-34s) : le serpent s'épuise et devient flasque / meurt
+  S4 (34-45s) : label "The Wild Horse Effect", puis "Calm is power."
+
+Aucune caption/sous-titre — le créateur ajoute audio + texte dans CapCut.
 """
 
-import sys
-import os
+import sys, os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from manim import *
 import numpy as np
-from scenes.base import NeonScene, PANEL_CENTER_Y, PANEL_UNIT_W, PANEL_UNIT_H, MANIM_H
+from scenes.base import (
+    NeonScene, PANEL_CENTER_Y, PANEL_UNIT_W, PANEL_UNIT_H, MANIM_H, STROKE_WIDTH
+)
 
-config.pixel_width = 1080
+config.pixel_width  = 1080
 config.pixel_height = 1920
-config.frame_rate = 30
+config.frame_rate   = 30
 config.background_color = "#000000"
-config.frame_width = 4.5
+config.frame_width  = 4.5
 config.frame_height = 8.0
 
-# Scene layout constants
-GROUND_Y = PANEL_CENTER_Y - PANEL_UNIT_H * 0.22   # ground line y
-SAW_X    = PANEL_UNIT_W * 0.22                     # saw center x
-SNAKE_X0 = -PANEL_UNIT_W * 0.44                    # snake start x
+# Layout — all relative to panel constants imported from base
+GROUND_Y  = PANEL_CENTER_Y - PANEL_UNIT_H * 0.10   # ground line (just below center)
+SAW_CX    = PANEL_UNIT_W  * 0.32                    # saw center x (right third)
+SNAKE_X0  = -PANEL_UNIT_W * 0.47                    # snake tail start x (left edge)
+SNAKE_LEN = PANEL_UNIT_W  * 0.42                    # snake body length
 
 
 class WildHorseEffect(NeonScene):
 
     def construct(self):
 
-        # ── 1. Title ─────────────────────────────────────────────────────
+        # ── Title — persistent, plain bold white ──────────────────────────
         title = self.title_text("Not Everything Is Against You..")
-        self.play(FadeIn(title, shift=DOWN * 0.08), run_time=0.7)
-        self.wait(0.5)
+        self.play(FadeIn(title), run_time=0.6)
+        self.wait(0.4)
 
-        # ── 2. Terrain ────────────────────────────────────────────────────
-        terrain = self._build_terrain()
-        self.play(Create(terrain), run_time=0.7)
-
-        # ── 3. Saw ────────────────────────────────────────────────────────
-        saw = self._build_saw(SAW_X, GROUND_Y)
-        self.play(Create(saw), run_time=1.3)
-        self.wait(0.3)
-
-        # ── 4. Snake draws in ─────────────────────────────────────────────
-        snake = self._build_snake_straight(SNAKE_X0, GROUND_Y)
-        self.play(Create(snake), run_time=1.5, rate_func=linear)
+        # ── S1a: saw appears ──────────────────────────────────────────────
+        saw = self._saw(SAW_CX, GROUND_Y)
+        self.play(Create(saw), run_time=1.2)
         self.wait(0.2)
 
-        # Snake crawls right toward saw
-        self.play(snake.animate.shift(RIGHT * 1.1), run_time=2.0, rate_func=linear)
-        self.play(snake.animate.shift(RIGHT * 0.9), run_time=1.6, rate_func=linear)
-        self.play(snake.animate.shift(RIGHT * 0.45), run_time=0.7, rate_func=rush_into)
+        # ── S1b: snake draws in from left ─────────────────────────────────
+        snake = self._snake_straight(SNAKE_X0, GROUND_Y)
+        self.play(Create(snake), run_time=1.4, rate_func=linear)
 
-        # ── 5. Contact / cut ──────────────────────────────────────────────
-        cut_pos = [SAW_X - 0.35, GROUND_Y + 0.08, 0]
-        self.flash_impact(cut_pos, run_time=0.5)
-        sparks = self._cut_sparks(cut_pos)
-        self.play(Create(sparks), run_time=0.25)
-        self.wait(0.4)
+        # crawl toward saw in two moves
+        self.play(snake.animate.shift(RIGHT * SNAKE_LEN * 0.55),
+                  run_time=2.2, rate_func=linear)
+        self.play(snake.animate.shift(RIGHT * SNAKE_LEN * 0.55),
+                  run_time=1.8, rate_func=linear)
+
+        # ── S1c: contact + cut flash ──────────────────────────────────────
+        cut_pt = [SAW_CX - PANEL_UNIT_W * 0.05, GROUND_Y + 0.06, 0]
+        self.flash_impact(cut_pt, run_time=0.5)
+        sparks = self._sparks(cut_pt, n=7, length=0.28)
+        self.play(Create(sparks), run_time=0.2)
         self.play(FadeOut(sparks), run_time=0.3)
         self.wait(0.5)
 
-        # ── 6. Snake coils around saw (fighting back) ─────────────────────
-        coiled = self._build_snake_coiled(SAW_X, GROUND_Y, tightness=1.0)
+        # ── S2: snake coils around saw ────────────────────────────────────
+        coiled = self._snake_coiled(SAW_CX, GROUND_Y, tightness=1.0)
         self.play(Transform(snake, coiled), run_time=2.2, rate_func=smooth)
-        self.wait(0.7)
+        self.wait(0.6)
 
-        # Tighten further
-        coiled_tight = self._build_snake_coiled(SAW_X, GROUND_Y, tightness=0.80)
-        self.play(Transform(snake, coiled_tight), run_time=1.8, rate_func=smooth)
+        # tighten — fighting harder
+        tighter = self._snake_coiled(SAW_CX, GROUND_Y, tightness=0.78)
+        self.play(Transform(snake, tighter), run_time=1.8, rate_func=smooth)
 
-        # Damage lines radiate
-        damage = self._build_damage_lines(SAW_X, GROUND_Y)
-        self.play(Create(damage), run_time=1.0)
-        self.play(damage.animate.scale(1.35).set_stroke(opacity=0.65), run_time=1.2)
+        # damage radiates from the saw
+        dmg = self._damage(SAW_CX, GROUND_Y)
+        self.play(Create(dmg), run_time=0.9)
+        self.play(dmg.animate.scale(1.4).set_stroke(opacity=0.55), run_time=1.2)
         self.wait(0.4)
 
-        # ── 7. Snake dies ─────────────────────────────────────────────────
-        limp = self._build_snake_limp(SAW_X, GROUND_Y)
+        # ── S3: snake exhausted — fades, goes limp ────────────────────────
+        limp = self._snake_limp(SAW_CX, GROUND_Y)
         self.play(
             Transform(snake, limp),
-            FadeOut(damage),
+            FadeOut(dmg),
             run_time=1.8, rate_func=smooth
         )
-        self.wait(0.4)
-        self.play(snake.animate.set_stroke(opacity=0.22), run_time=1.4)
-
-        # Saw highlight — it was never threatened
-        hl = saw.copy().set_stroke(opacity=1.0)
-        self.play(GrowFromCenter(hl), run_time=0.7)
         self.wait(0.3)
-        self.play(FadeOut(hl), run_time=0.5)
+        self.play(snake.animate.set_stroke(opacity=0.18), run_time=1.5)
 
-        # ── 8. Transition out ─────────────────────────────────────────────
-        self.play(FadeOut(snake), FadeOut(saw), FadeOut(terrain), run_time=1.0)
-        self.wait(0.2)
+        # saw unchanged — it was never threatened
+        saw_hl = saw.copy().set_stroke(opacity=1.0)
+        self.play(GrowFromCenter(saw_hl), run_time=0.6)
+        self.wait(0.3)
+        self.play(FadeOut(saw_hl), run_time=0.4)
 
-        # ── 9. Wild Horse Effect label ────────────────────────────────────
-        whe = Text("The Wild Horse Effect", font="Arial",
-                   font_size=52, color=WHITE, weight=BOLD)
-        whe.move_to([0, PANEL_CENTER_Y + 0.5, 0])
-        underline = Line(
-            whe.get_left() + DOWN * 0.32,
-            whe.get_right() + DOWN * 0.32,
-            stroke_color=WHITE, stroke_width=2, stroke_opacity=0.55
+        # ── Transition: fade scene out ────────────────────────────────────
+        self.play(FadeOut(snake), FadeOut(saw), run_time=0.8)
+        self.wait(0.15)
+
+        # ── S4a: "The Wild Horse Effect" ──────────────────────────────────
+        label = Text("The Wild Horse Effect",
+                     font="Arial", font_size=46, color=WHITE, weight=BOLD)
+        label.move_to([0, PANEL_CENTER_Y + 0.35, 0])
+        uline = Line(
+            label.get_left() + DOWN * 0.28,
+            label.get_right() + DOWN * 0.28,
+            stroke_color=WHITE, stroke_width=1.8, stroke_opacity=0.5
         )
-        self.play(Write(whe), run_time=1.4)
-        self.play(Create(underline), run_time=0.5)
-        self.wait(1.0)
-        self.play(FadeOut(whe), FadeOut(underline), run_time=0.7)
+        self.play(Write(label), run_time=1.2)
+        self.play(Create(uline), run_time=0.4)
+        self.wait(1.2)
+        self.play(FadeOut(label), FadeOut(uline), run_time=0.6)
 
-        # ── 10. Reaction diagram ──────────────────────────────────────────
-        person   = self._build_person([-1.7, PANEL_CENTER_Y - 0.2, 0])
-        arrow_in = self._build_arrow(
-            [-0.7, PANEL_CENTER_Y - 0.2, 0],
-            [0.5, PANEL_CENTER_Y - 0.2, 0],
-            label="reaction"
-        )
-        chaos    = self._build_chaos_arrows([1.4, PANEL_CENTER_Y - 0.2, 0])
-
-        self.play(Create(person), run_time=1.0)
-        self.wait(0.2)
-        self.play(Create(arrow_in), run_time=0.8)
-        self.play(Create(chaos), run_time=1.0)
-        self.wait(0.9)
-
-        # Strike through chaos
-        strike = Line(
-            chaos.get_left() + LEFT * 0.15,
-            chaos.get_right() + RIGHT * 0.15,
-            stroke_color=WHITE, stroke_width=5
-        )
-        self.play(Create(strike), run_time=0.4)
-        self.wait(0.4)
-        self.play(FadeOut(chaos), FadeOut(strike), run_time=0.7)
-
-        # Replace with calm straight arrow
-        calm_arrow = Arrow(
-            [0.5, PANEL_CENTER_Y - 0.2, 0],
-            [2.1, PANEL_CENTER_Y - 0.2, 0],
-            stroke_color=WHITE, stroke_width=4,
-            buff=0, max_tip_length_to_length_ratio=0.18
-        )
-        self.play(Create(calm_arrow), run_time=0.8)
-        self.wait(0.7)
-
-        # ── 11. Calm is power ─────────────────────────────────────────────
-        self.play(FadeOut(person), FadeOut(arrow_in),
-                  FadeOut(calm_arrow), run_time=0.7)
+        # ── S4b: "Calm is power." ─────────────────────────────────────────
         calm = Text("Calm is power.", font="Arial",
-                    font_size=60, color=WHITE, weight=BOLD)
+                    font_size=58, color=WHITE, weight=BOLD)
         calm.move_to([0, PANEL_CENTER_Y, 0])
-        self.play(Write(calm), run_time=1.4)
+        self.play(Write(calm), run_time=1.2)
         self.wait(2.5)
-        self.play(FadeOut(calm), run_time=0.9)
+        self.play(FadeOut(calm), FadeOut(title), run_time=0.9)
         self.wait(0.5)
 
-    # ── Element builders ───────────────────────────────────────────────────
+    # ── Element builders ──────────────────────────────────────────────────
 
-    def _build_terrain(self) -> VGroup:
-        g = VGroup()
-        # Primary ground — bold, slightly above GROUND_Y
-        g.add(self.neon_line(
-            [-PANEL_UNIT_W * 0.49, GROUND_Y, 0],
-            [PANEL_UNIT_W * 0.49, GROUND_Y, 0],
-            stroke_width=2.2, opacity=0.60
-        ))
-        # Secondary depth lines below
-        for offset, op in [(-0.18, 0.20), (-0.34, 0.11)]:
-            g.add(self.neon_line(
-                [-PANEL_UNIT_W * 0.47, GROUND_Y + offset, 0],
-                [PANEL_UNIT_W * 0.47, GROUND_Y + offset, 0],
-                stroke_width=1.3, opacity=op
-            ))
-        # Pebbles
-        for px, pr in [(-2.5, 0.055), (0.6, 0.045), (2.0, 0.050)]:
-            d = Dot([px, GROUND_Y + 0.04, 0], radius=pr,
-                    color=WHITE).set_opacity(0.28)
-            g.add(d)
-        return g
+    def _saw(self, cx: float, y: float) -> VGroup:
+        """
+        Bear-trap style saw matching ref_001:
+        rectangular body with jagged teeth on top, circular gear/pivot detail.
+        Sized to occupy ~28% of panel width.
+        """
+        g  = VGroup()
+        W  = PANEL_UNIT_W * 0.30   # ~0.90 units wide
+        H  = PANEL_UNIT_H * 0.46   # ~0.46 units tall
 
-    def _build_saw(self, x: float, y: float) -> VGroup:
-        """Larger saw matching ref_001 proportions."""
-        g = VGroup()
-        W, H = 1.30, 0.66
+        # Body rectangle
         body = Rectangle(width=W, height=H)
-        body.move_to([x + W * 0.15, y + H * 0.25, 0])
-        body.set_stroke(WHITE, width=5.0).set_fill(opacity=0)
+        body.move_to([cx + W * 0.05, y + H * 0.28, 0])
+        body.set_stroke(WHITE, width=5.5).set_fill(opacity=0)
         g.add(body)
 
-        # Teeth row across the top
+        # Teeth across the top
         n = 12
-        x0, x1 = x - W * 0.35, x + W * 0.65
-        base_y = y + H * 0.52
-        tooth_h = 0.26
+        x0 = cx - W * 0.43
+        x1 = cx + W * 0.57
+        by = y + H * 0.57
+        th = H * 0.36
         sp = (x1 - x0) / n
-        pts = []
+        pts = [np.array([x0, by, 0])]
         for i in range(n):
             tx = x0 + i * sp
-            pts += [np.array([tx, base_y, 0]),
-                    np.array([tx + sp * 0.5, base_y + tooth_h, 0])]
-        pts.append(np.array([x1, base_y, 0]))
+            pts.append(np.array([tx + sp * 0.5, by + th, 0]))
+            pts.append(np.array([tx + sp, by, 0]))
         teeth = VMobject().set_points_as_corners(pts)
-        teeth.set_stroke(WHITE, width=4.0)
+        teeth.set_stroke(WHITE, width=4.5)
         g.add(teeth)
 
-        # Pivot circle
-        pivot = Circle(radius=0.13).move_to([x + W * 0.42, y + H * 0.25, 0])
-        pivot.set_stroke(WHITE, width=3.5).set_fill(opacity=0)
+        # Circular pivot
+        pivot_r = W * 0.13
+        pivot = Circle(radius=pivot_r)
+        pivot.move_to([cx + W * 0.38, y + H * 0.28, 0])
+        pivot.set_stroke(WHITE, width=4.0).set_fill(opacity=0)
         g.add(pivot)
+
+        # Inner dot of pivot
+        inner = Dot([cx + W * 0.38, y + H * 0.28, 0],
+                    radius=pivot_r * 0.32, color=WHITE).set_opacity(0.7)
+        g.add(inner)
+
         return g
 
-    def _build_snake_straight(self, start_x: float, y: float) -> VGroup:
-        """Larger snake with sinuous body."""
-        g = VGroup()
-        length, segs = 2.0, 28
-        pts = [
-            np.array([start_x + (i / segs) * length,
-                       y + np.sin((i / segs) * TAU * 1.4) * 0.155, 0])
+    def _snake_straight(self, start_x: float, y: float) -> VGroup:
+        """Sinuous snake body + head, sized to match ref_001."""
+        g    = VGroup()
+        segs = 32
+        pts  = [
+            np.array([
+                start_x + (i / segs) * SNAKE_LEN,
+                y + np.sin((i / segs) * TAU * 1.6) * 0.13,
+                0
+            ])
             for i in range(segs + 1)
         ]
         body = VMobject()
         body.set_points_smoothly(pts)
-        body.set_stroke(WHITE, width=6.5)
+        body.set_stroke(WHITE, width=6.0)
         g.add(body)
-        head = Circle(radius=0.135).move_to(
-            [start_x + length + 0.135, y + 0.01, 0]
-        )
+
+        head_pos = np.array([start_x + SNAKE_LEN + 0.12, y + 0.01, 0])
+        head = Circle(radius=0.12)
+        head.move_to(head_pos)
         head.set_stroke(WHITE, width=5).set_fill(opacity=0)
         g.add(head)
         return g
 
-    def _build_snake_coiled(self, saw_x: float, y: float,
-                             tightness: float = 1.0) -> VGroup:
-        g = VGroup()
-        cx, cy = saw_x + 0.20, y + 0.28
-        turns, segs = 1.9 * tightness, 70
+    def _snake_coiled(self, saw_cx: float, y: float, tightness: float = 1.0) -> VGroup:
+        """Spiral coil around the saw."""
+        g  = VGroup()
+        cx = saw_cx + 0.10
+        cy = y + PANEL_UNIT_H * 0.18
+        turns = 1.85 * tightness
+        segs  = 80
         pts = []
         for i in range(segs + 1):
-            t = i / segs
+            t     = i / segs
             angle = t * TAU * turns
-            r = 0.95 - t * 0.30 * tightness
+            r     = 0.82 - t * 0.28 * tightness
             pts.append(np.array([
                 cx + r * np.cos(angle),
-                cy + r * np.sin(angle) * 0.58, 0
+                cy + r * np.sin(angle) * 0.52,
+                0
             ]))
         body = VMobject()
         body.set_points_smoothly(pts)
-        body.set_stroke(WHITE, width=6.5)
+        body.set_stroke(WHITE, width=6.0)
         g.add(body)
-        head = Circle(radius=0.135).move_to(pts[-1])
-        head.set_stroke(WHITE, width=5).set_fill(opacity=0)
+        head = Circle(radius=0.11).move_to(pts[-1])
+        head.set_stroke(WHITE, width=4.5).set_fill(opacity=0)
         g.add(head)
         return g
 
-    def _build_snake_limp(self, saw_x: float, y: float) -> VGroup:
-        g = VGroup()
-        cx = saw_x + 0.18
+    def _snake_limp(self, saw_cx: float, y: float) -> VGroup:
+        """Dead/exhausted snake draped below the saw."""
+        g  = VGroup()
+        cx = saw_cx + 0.08
         pts = [
-            np.array([cx - 1.3, y - 0.14, 0]),
-            np.array([cx - 0.7, y + 0.07, 0]),
-            np.array([cx - 0.1, y + 0.02, 0]),
-            np.array([cx + 0.35, y + 0.09, 0]),
-            np.array([cx + 0.72, y - 0.12, 0]),
+            np.array([cx - PANEL_UNIT_W * 0.28, y - 0.11, 0]),
+            np.array([cx - PANEL_UNIT_W * 0.14, y + 0.06, 0]),
+            np.array([cx + 0.00,                y + 0.02, 0]),
+            np.array([cx + PANEL_UNIT_W * 0.10, y + 0.07, 0]),
+            np.array([cx + PANEL_UNIT_W * 0.20, y - 0.10, 0]),
         ]
         body = VMobject()
         body.set_points_smoothly(pts)
         body.set_stroke(WHITE, width=5.5)
         g.add(body)
-        head = Circle(radius=0.12).move_to([cx + 0.80, y - 0.17, 0])
+        head = Circle(radius=0.10).move_to(pts[-1] + np.array([0.09, -0.04, 0]))
         head.set_stroke(WHITE, width=4).set_fill(opacity=0)
         g.add(head)
         return g
 
-    def _cut_sparks(self, center, n=6, length=0.30) -> VGroup:
+    def _sparks(self, center, n: int = 7, length: float = 0.26) -> VGroup:
         g = VGroup()
         for i in range(n):
             a = (TAU / n) * i + TAU / (n * 2)
             d = np.array([np.cos(a), np.sin(a), 0])
-            g.add(Line(np.array(center) + d * 0.06,
-                       np.array(center) + d * length,
-                       stroke_color=WHITE, stroke_width=3, stroke_opacity=0.88))
+            g.add(Line(
+                np.array(center) + d * 0.05,
+                np.array(center) + d * length,
+                stroke_color=WHITE, stroke_width=3, stroke_opacity=0.9
+            ))
         return g
 
-    def _build_damage_lines(self, saw_x: float, y: float) -> VGroup:
-        g = VGroup()
-        cx, cy = saw_x + 0.20, y + 0.28
-        for angle in [25, 80, 140, 195, 255, 315]:
-            a = np.radians(angle)
-            d = np.array([np.cos(a), np.sin(a) * 0.58, 0])
-            g.add(Line(np.array([cx, cy, 0]) + d * 0.55,
-                       np.array([cx, cy, 0]) + d * 0.95,
-                       stroke_color=WHITE, stroke_width=2.2, stroke_opacity=0.72))
-        return g
-
-    def _build_person(self, center) -> VGroup:
-        g = VGroup()
-        cx, cy, _ = center
-        # Head
-        g.add(Circle(radius=0.24).move_to([cx, cy + 0.75, 0])
-              .set_stroke(WHITE, 4.5).set_fill(opacity=0))
-        # Body
-        g.add(Line([cx, cy + 0.51, 0], [cx, cy - 0.24, 0],
-                   stroke_color=WHITE, stroke_width=4.5))
-        # Arms
-        g.add(Line([cx - 0.40, cy + 0.18, 0], [cx + 0.40, cy + 0.18, 0],
-                   stroke_color=WHITE, stroke_width=4.0))
-        # Legs
-        g.add(Line([cx, cy - 0.24, 0], [cx - 0.30, cy - 0.75, 0],
-                   stroke_color=WHITE, stroke_width=4.0))
-        g.add(Line([cx, cy - 0.24, 0], [cx + 0.30, cy - 0.75, 0],
-                   stroke_color=WHITE, stroke_width=4.0))
-        return g
-
-    def _build_arrow(self, start, end, label: str = "") -> VGroup:
-        g = VGroup()
-        arr = Arrow(np.array(start), np.array(end),
-                    stroke_color=WHITE, stroke_width=4, buff=0,
-                    max_tip_length_to_length_ratio=0.18)
-        g.add(arr)
-        if label:
-            lbl = Text(label, font="Arial", font_size=30, color=WHITE)
-            lbl.move_to(np.array([(start[0]+end[0])/2, start[1]+0.34, 0]))
-            g.add(lbl)
-        return g
-
-    def _build_chaos_arrows(self, center) -> VGroup:
-        g = VGroup()
-        cx, cy, _ = center
-        for angle, length in [(40, 0.55), (95, 0.48), (155, 0.52),
-                               (-25, 0.50), (-100, 0.45)]:
-            a = np.radians(angle)
-            end = np.array([cx + np.cos(a)*length, cy + np.sin(a)*length, 0])
-            g.add(Arrow(np.array([cx, cy, 0]), end,
-                        stroke_color=WHITE, stroke_width=3.5,
-                        buff=0, max_tip_length_to_length_ratio=0.22))
+    def _damage(self, saw_cx: float, y: float) -> VGroup:
+        """Short radiating lines around saw — energy/frustration."""
+        g  = VGroup()
+        cx = saw_cx + 0.10
+        cy = y + PANEL_UNIT_H * 0.18
+        for angle_deg in [0, 55, 110, 170, 225, 285, 340]:
+            a = np.radians(angle_deg)
+            d = np.array([np.cos(a), np.sin(a) * 0.55, 0])
+            g.add(Line(
+                np.array([cx, cy, 0]) + d * 0.48,
+                np.array([cx, cy, 0]) + d * 0.82,
+                stroke_color=WHITE, stroke_width=2.2, stroke_opacity=0.75
+            ))
         return g

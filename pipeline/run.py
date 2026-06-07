@@ -1,124 +1,73 @@
 """
-Main orchestrator.
-Receives a video spec dict (produced by script_generator) and runs the full pipeline:
-  1. Render Manim animation
-  2. Apply glow post-process
-  3. Generate TTS audio + word timestamps
-  4. Compose final MP4
+Pipeline simplifié: Manim render → glow → MP4 final.
+Pas de TTS, pas de captions (le créateur ajoute audio + sous-titres dans CapCut).
 
-Usage (called by me, Claude, directly from conversation):
-    from pipeline.run import run_pipeline
-    run_pipeline(spec)
+Usage:
+    from pipeline.run import render
+    render("scenes/wild_horse_effect.py", "WildHorseEffect", "wild_horse_effect")
 """
 
 import os
 import sys
 import subprocess
-import tempfile
-import json
+import shutil
 from pathlib import Path
-from datetime import datetime
 
 ROOT = Path(__file__).parent.parent
 sys.path.insert(0, str(ROOT))
 
 from pipeline.glow import process_video
-from pipeline.tts import generate_voiceover
-from pipeline.composer import compose
+
+OUTPUT_DIR = ROOT / "output" / "renders"
 
 
-def run_pipeline(spec: dict) -> str:
+def render(scene_file: str, scene_class: str, slug: str) -> str:
     """
-    spec keys:
-        title        : str  — hook title shown on screen
-        script       : str  — full narration text for TTS
-        scene_file   : str  — path to generated Manim scene Python file
-        scene_class  : str  — Manim scene class name inside scene_file
-        slug         : str  — short identifier for output filenames
-
-    Returns path to final MP4.
+    Render scene_class from scene_file, apply glow, save to output/renders/{slug}.mp4
+    Returns final MP4 path.
     """
-    slug = spec.get("slug", datetime.now().strftime("%Y%m%d_%H%M%S"))
-    work_dir = ROOT / "output" / "videos" / slug
-    work_dir.mkdir(parents=True, exist_ok=True)
+    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+    tmp_dir = ROOT / "output" / "_tmp"
+    tmp_dir.mkdir(parents=True, exist_ok=True)
 
-    print(f"\n=== PIPELINE START: {slug} ===\n")
+    # 1. Manim render
+    raw_path = tmp_dir / f"{scene_class}_raw.mp4"
+    _render_manim(scene_file, scene_class, tmp_dir, raw_path)
 
-    # ── 1. Render Manim ──────────────────────────────────────────────────────
-    raw_video = work_dir / "animation_raw.mp4"
-    _render_manim(
-        scene_file=spec["scene_file"],
-        scene_class=spec["scene_class"],
-        output_path=raw_video
-    )
+    # 2. Glow post-process
+    final_path = OUTPUT_DIR / f"{slug}.mp4"
+    process_video(str(raw_path), str(final_path))
 
-    # ── 2. Glow post-process ─────────────────────────────────────────────────
-    glow_video = work_dir / "animation_glow.mp4"
-    process_video(str(raw_video), str(glow_video))
-
-    # ── 3. TTS + timestamps ──────────────────────────────────────────────────
-    audio_path = work_dir / "voiceover.mp3"
-    tts_result = generate_voiceover(
-        script=spec["script"],
-        output_path=str(audio_path)
-    )
-
-    # ── 4. Compose final video ───────────────────────────────────────────────
-    final_path = ROOT / "output" / "videos" / f"{slug}_final.mp4"
-    compose(
-        animation_video=str(glow_video),
-        audio_path=tts_result["audio_path"],
-        word_timestamps=tts_result["word_timestamps"],
-        title=spec["title"],
-        output_path=str(final_path),
-        audio_duration=tts_result["duration"]
-    )
-
-    print(f"\n=== PIPELINE COMPLETE ===")
-    print(f"    Output: {final_path}\n")
+    shutil.rmtree(str(tmp_dir), ignore_errors=True)
+    print(f"\n=== DONE: {final_path} ===\n")
     return str(final_path)
 
 
-def _render_manim(scene_file: str, scene_class: str, output_path: Path) -> None:
-    """
-    Run Manim CLI to render a scene to MP4.
-    Uses high quality settings for 1080x1920.
-    """
+def _render_manim(scene_file: str, scene_class: str, tmp_dir: Path, output_path: Path) -> None:
     python = str(ROOT / ".venv" / "bin" / "python")
-
-    # Manim output goes to a temp dir, then we move to expected output_path
-    tmp_output_dir = ROOT / "output" / "videos" / "_manim_tmp"
-    tmp_output_dir.mkdir(parents=True, exist_ok=True)
-
     cmd = [
         python, "-m", "manim", "render",
-        scene_file,
-        scene_class,
+        scene_file, scene_class,
         "--output_file", scene_class,
-        "--media_dir", str(tmp_output_dir),
+        "--media_dir", str(tmp_dir),
         "--format", "mp4",
         "--fps", "30",
         "-r", "1080,1920",
         "-q", "h",
         "--disable_caching",
     ]
-
-    print(f"  manim: rendering {scene_class}...")
+    print(f"  rendering {scene_class}...")
     result = subprocess.run(cmd, capture_output=True, text=True, cwd=str(ROOT))
-
     if result.returncode != 0:
-        print(result.stdout[-1000:])
-        print(result.stderr[-2000:])
-        raise RuntimeError(f"Manim render failed for {scene_class}")
+        print(result.stdout[-800:])
+        print(result.stderr[-1500:])
+        raise RuntimeError(f"Manim render failed")
 
-    # Find the rendered file and move it
-    rendered = list(tmp_output_dir.rglob(f"{scene_class}.mp4"))
+    rendered = list(tmp_dir.rglob(f"{scene_class}.mp4"))
     if not rendered:
-        rendered = list(tmp_output_dir.rglob("*.mp4"))
+        rendered = list(tmp_dir.rglob("*.mp4"))
     if not rendered:
-        raise RuntimeError("Manim rendered successfully but output MP4 not found")
+        raise RuntimeError("Manim output MP4 not found")
 
-    import shutil
     shutil.move(str(rendered[0]), str(output_path))
-    shutil.rmtree(str(tmp_output_dir), ignore_errors=True)
-    print(f"  manim: render complete -> {output_path}")
+    print(f"  raw render -> {output_path}")

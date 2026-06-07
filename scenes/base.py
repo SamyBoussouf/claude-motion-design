@@ -4,59 +4,81 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from manim import *
 import numpy as np
-from config.style import (
-    BG_COLOR, STROKE_COLOR, STROKE_WIDTH,
-    PANEL_W, PANEL_H, CANVAS_W, CANVAS_H, FPS
-)
 
-# Manim config for 1080x1920 vertical format
-config.pixel_width = CANVAS_W
-config.pixel_height = CANVAS_H
-config.frame_rate = FPS
-config.background_color = BG_COLOR
-
-# Force correct aspect ratio for 9:16 portrait
-# 1 unit = 240px in both axes (square pixels)
-config.frame_width = 4.5
+config.pixel_width  = 1080
+config.pixel_height = 1920
+config.frame_rate   = 30
+config.background_color = "#000000"
+config.frame_width  = 4.5
 config.frame_height = 8.0
 
 MANIM_W = 4.5
 MANIM_H = 8.0
 
-# Panel: landscape 16:9 strip within the portrait frame
-# Matches ref_001: panel centered at ~45% down the frame, filling most of the width
-PANEL_UNIT_W = MANIM_W * 0.92          # 4.14 units  ~  994px
-PANEL_UNIT_H = PANEL_UNIT_W * 0.5625   # 2.33 units  ~  559px  (16:9)
-PANEL_CENTER_Y = 0.80                   # upper-center → ~768px from top (40% down)
+# Panel dimensions — calibrated from ref_001 pixel measurements:
+#   panel rows 38-62% of frame height, center at ~50%
+#   panel cols 10-90% of frame width
+PANEL_CENTER_Y = 0.0          # Manim Y=0 is frame center → panel centered at 50%
+PANEL_UNIT_W   = 3.80         # 3.80 × 240px = 912px wide  (84% of 1080)
+PANEL_UNIT_H   = 2.00         # 2.00 × 240px = 480px tall  (25% of 1920)
+
+# Title vertical position: 30% from top → Manim Y = 4.0 - 0.30×8.0 = 1.60
+TITLE_Y_MANIM  = 1.60
+
+# Panel background color matching ref (very dark warm near-black)
+PANEL_BG_HEX   = "#0b0507"
+
+STROKE_WIDTH   = 5
 
 
 class NeonScene(Scene):
-    """
-    Base class for all psychovius-style neon animation scenes.
-    """
 
     def setup(self):
-        self.camera.background_color = BG_COLOR
-        self._draw_panel_bg()
+        self.camera.background_color = "#000000"
+        self._draw_panel()
 
-    def _draw_panel_bg(self):
-        """Subtle horizontal ground lines — ref_001 terrain texture."""
-        ground = VGroup()
-        y_positions = np.linspace(
-            PANEL_CENTER_Y - PANEL_UNIT_H * 0.30,
-            PANEL_CENTER_Y - PANEL_UNIT_H * 0.48,
-            4
+    def _draw_panel(self):
+        """Dark warm-tinted panel background with terrain sketch lines."""
+        bg = Rectangle(
+            width=PANEL_UNIT_W + 0.10,
+            height=PANEL_UNIT_H + 0.10,
         )
-        for y in y_positions:
-            line = Line(
-                [-PANEL_UNIT_W * 0.49, y, 0],
-                [PANEL_UNIT_W * 0.49, y, 0],
-                stroke_color=WHITE,
-                stroke_width=1.0,
-                stroke_opacity=0.22
-            )
-            ground.add(line)
-        self.add(ground)
+        bg.move_to([0, PANEL_CENTER_Y, 0])
+        bg.set_fill(color=PANEL_BG_HEX, opacity=1.0)
+        bg.set_stroke(opacity=0)
+        self.add(bg)
+
+        # Terrain — horizontal sketch lines crossing the panel
+        ground_y   = PANEL_CENTER_Y - PANEL_UNIT_H * 0.08
+        terrain_grp = VGroup()
+        for i, (offset, op, sw) in enumerate([
+            (0,      0.55, 1.8),
+            (-0.22,  0.22, 1.1),
+            (-0.38,  0.12, 0.9),
+            (-0.52,  0.07, 0.7),
+            ( 0.18,  0.10, 0.8),
+        ]):
+            y = ground_y + offset
+            # Slight waviness per line
+            pts = []
+            steps = 30
+            x0, x1 = -PANEL_UNIT_W * 0.48, PANEL_UNIT_W * 0.48
+            for s in range(steps + 1):
+                t  = s / steps
+                x  = x0 + t * (x1 - x0)
+                dy = np.sin(t * TAU * (2 + i * 0.7) + i) * 0.018
+                pts.append([x, y + dy, 0])
+            ln = VMobject()
+            ln.set_points_smoothly([np.array(p) for p in pts])
+            ln.set_stroke(WHITE, width=sw, opacity=op)
+            terrain_grp.add(ln)
+
+        # A few pebble dots
+        for px, pr, op in [(-1.55, 0.04, 0.25), (0.40, 0.03, 0.20), (1.30, 0.04, 0.22)]:
+            d = Dot([px, ground_y + 0.03, 0], radius=pr, color=WHITE).set_opacity(op)
+            terrain_grp.add(d)
+
+        self.add(terrain_grp)
 
     # ── Primitive builders ─────────────────────────────────────────────────
 
@@ -84,59 +106,34 @@ class NeonScene(Scene):
 
     # ── Text helpers ───────────────────────────────────────────────────────
 
-    def title_text(self, text, font_size=56, color=WHITE):
+    def title_text(self, text, font_size=52, color=WHITE):
         """
-        Persistent hook title — upper-left of frame, matching ref_001.
-        Position: ~200px from top, ~80px from left.
+        Hook title — upper-left, plain bold white, NO glow (matching ref_001).
+        Position: 30% from top, left-aligned.
         """
-        title = Text(
-            text,
-            font="Arial",
-            font_size=font_size,
-            color=color,
-            weight=BOLD,
-        )
-        max_w = MANIM_W * 0.88
+        title = Text(text, font="Arial", font_size=font_size, color=color, weight=BOLD)
+        max_w = MANIM_W * 0.86
         if title.width > max_w:
             title.scale_to_fit_width(max_w)
-        # Left-align: shift left edge to frame left + margin
         title.to_edge(LEFT, buff=0.28)
-        # Vertical: upper area — ~200px from top  →  y = 4.0 - 200/240 ≈ 3.17
-        title.set_y(MANIM_H * 0.5 - 1.0)
+        title.set_y(TITLE_Y_MANIM)
         return title
-
-    def word_label(self, text, position, font_size=38, color=WHITE):
-        label = Text(text, font="Arial", font_size=font_size,
-                     color=color, weight=NORMAL)
-        label.move_to(position)
-        return label
 
     # ── Animation helpers ──────────────────────────────────────────────────
 
-    def impact_burst(self, center, n_rays=8, ray_length=0.55):
+    def impact_burst(self, center, n_rays=8, ray_length=0.45):
         rays = VGroup()
         for i in range(n_rays):
             angle = (TAU / n_rays) * i
             d = np.array([np.cos(angle), np.sin(angle), 0])
             rays.add(Line(
-                np.array(center) + d * 0.10,
+                np.array(center) + d * 0.08,
                 np.array(center) + d * ray_length,
                 stroke_color=WHITE, stroke_width=3, stroke_opacity=0.9
             ))
         return rays
 
-    def draw_in(self, mobject, run_time=1.5):
-        self.play(Create(mobject), run_time=run_time, rate_func=linear)
-
     def flash_impact(self, center, run_time=0.4):
         burst = self.impact_burst(center)
         self.play(Create(burst), run_time=run_time * 0.5, rate_func=rush_into)
-        self.play(FadeOut(burst), run_time=run_time * 0.5, rate_func=rush_from)
-
-    def show_word(self, text, position=None, duration=0.6, font_size=38):
-        if position is None:
-            position = [0, PANEL_CENTER_Y - PANEL_UNIT_H * 0.5 - 0.35, 0]
-        label = self.word_label(text, position, font_size=font_size)
-        self.play(FadeIn(label, shift=UP * 0.08), run_time=0.12)
-        self.wait(duration)
-        self.play(FadeOut(label), run_time=0.12)
+        self.play(FadeOut(burst), run_time=run_time * 0.5)

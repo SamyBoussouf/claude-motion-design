@@ -38,10 +38,12 @@ def apply_glow_to_frame(frame_bgr: np.ndarray, blur_radius: int = 21,
     # Screen blend: result = 1 - (1-base)*(1-glow)
     result = 1.0 - (1.0 - frame_f) * (1.0 - glow)
 
-    # Subtle pink/warm tint on the glow halo (matches ref color temperature)
+    # Pink/warm tint — ref mean glow RGB (175,159,163): R>B>G, magenta-warm
+    # In BGR order: B=163, G=159, R=175 → red lift, green neutral, slight blue
     tint = np.zeros_like(result)
-    tint[:, :, 2] = glow[:, :, 2] * 0.08   # slight red lift
-    tint[:, :, 0] = glow[:, :, 0] * -0.04  # slight blue reduction
+    tint[:, :, 2] = glow[:, :, 2] * 0.18   # red channel lift (BGR: index 2 = R)
+    tint[:, :, 1] = glow[:, :, 1] * -0.02  # very slight green reduction
+    tint[:, :, 0] = glow[:, :, 0] * 0.06   # small blue keep (soft pink not yellow)
     result = np.clip(result + tint, 0, 1)
 
     # Background grain — organic texture on dark areas
