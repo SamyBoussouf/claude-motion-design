@@ -15,15 +15,20 @@ config.pixel_height = CANVAS_H
 config.frame_rate = FPS
 config.background_color = BG_COLOR
 
-# Unit conversion: Manim works in abstract units (frame is ~14.2 wide x ~8 tall at default)
-# We scale to match our panel dimensions within the vertical canvas
-MANIM_W = config.frame_width    # ~14.2 units
-MANIM_H = config.frame_height   # ~25.3 units for 9:16
+# Force correct aspect ratio for 9:16 portrait
+# Default Manim uses 14.2 x 8 (16:9), which distorts portrait renders.
+# Setting frame_width = 8 * (9/16) = 4.5 gives square pixels: 1 unit = 240px.
+config.frame_width = 4.5
+config.frame_height = 8.0
 
-# Panel occupies center band of the frame
-PANEL_UNIT_W = MANIM_W * 0.89
-PANEL_UNIT_H = PANEL_UNIT_W * (PANEL_H / PANEL_W)  # maintain 16:9 ratio
-PANEL_CENTER_Y = 0.0  # vertically centered in Manim frame
+MANIM_W = 4.5   # total frame width in Manim units
+MANIM_H = 8.0   # total frame height in Manim units
+
+# Panel: 16:9 landscape window centered in the 9:16 portrait frame
+# Takes ~27% of frame height, matching ref_001 layout
+PANEL_UNIT_W = MANIM_W * 0.88          # 3.96 units ~ 950px
+PANEL_UNIT_H = PANEL_UNIT_W * 0.5625   # 2.23 units ~ 535px (16:9)
+PANEL_CENTER_Y = -0.5                   # slightly below center, matching ref_001
 
 
 class NeonScene(Scene):
@@ -92,16 +97,20 @@ class NeonScene(Scene):
         return label
 
     def title_text(self, text, font_size=52, color=WHITE):
-        """Persistent title hook — upper section of frame."""
+        """Persistent title hook — upper third of frame.
+        With 1 unit = 240px: y=2.3 → 240px from top edge."""
         title = Text(
             text,
             font="Arial",
             font_size=font_size,
             color=color,
             weight=BOLD,
-            width=MANIM_W * 0.82
         )
-        title.move_to([0, MANIM_H * 0.5 - 1.8, 0])
+        # Scale to fit within frame width with margins
+        if title.width > MANIM_W * 0.85:
+            title.scale_to_fit_width(MANIM_W * 0.85)
+        # Position: upper third — y = MANIM_H/2 - 1.0 ≈ 3.0 → ~240px from top
+        title.move_to([-0.0, MANIM_H * 0.5 - 1.2, 0])
         return title
 
     def impact_burst(self, center, n_rays=8, ray_length=0.9):

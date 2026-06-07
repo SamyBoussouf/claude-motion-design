@@ -91,7 +91,7 @@ def _render_manim(scene_file: str, scene_class: str, output_path: Path) -> None:
     tmp_output_dir.mkdir(parents=True, exist_ok=True)
 
     cmd = [
-        python, "-m", "manim",
+        python, "-m", "manim", "render",
         scene_file,
         scene_class,
         "--output_file", scene_class,
@@ -99,7 +99,7 @@ def _render_manim(scene_file: str, scene_class: str, output_path: Path) -> None:
         "--format", "mp4",
         "--fps", "30",
         "-r", "1080,1920",
-        "-q", "h",           # high quality
+        "-q", "h",
         "--disable_caching",
     ]
 
