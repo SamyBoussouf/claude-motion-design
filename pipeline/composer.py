@@ -110,18 +110,25 @@ def _composite_frame(
     title_img = Image.fromarray(title_overlay, mode="RGBA")
     frame_rgba = Image.alpha_composite(frame_rgba, title_img)
 
-    # Word caption
+    # Word caption with neon glow
     if word:
         word_img = Image.new("RGBA", (canvas_w, canvas_h), (0, 0, 0, 0))
         d = ImageDraw.Draw(word_img)
-        # Measure text for centering
         bbox = d.textbbox((0, 0), word, font=word_font)
         tw = bbox[2] - bbox[0]
         wx = (canvas_w - tw) // 2
-        wy = canvas_h // 2 + 85
-        # Shadow
-        d.text((wx + 2, wy + 2), word, font=word_font, fill=(0, 0, 0, 140))
+        wy = int(canvas_h * 0.63)
         d.text((wx, wy), word, font=word_font, fill=(255, 255, 255, 255))
+        # Glow: blur the alpha channel to create extended halo, then screen blend
+        word_np = np.array(word_img)
+        alpha_f = word_np[:, :, 3].astype(np.float32)
+        import cv2 as _cv2
+        glow_alpha = _cv2.GaussianBlur(alpha_f, (0, 0), sigmaX=11)
+        glow_alpha = np.clip(glow_alpha * 2.8, 0, 255).astype(np.uint8)
+        white_rgb = np.full((*glow_alpha.shape, 3), 255, dtype=np.uint8)
+        glow_rgba = np.dstack([white_rgb, glow_alpha])
+        glow_img = Image.fromarray(glow_rgba, mode="RGBA")
+        word_img = Image.alpha_composite(glow_img, word_img)
         frame_rgba = Image.alpha_composite(frame_rgba, word_img)
 
     return cv2.cvtColor(np.array(frame_rgba), cv2.COLOR_RGBA2BGR)

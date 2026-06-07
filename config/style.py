@@ -37,7 +37,7 @@ TITLE_Y = 340           # px from top
 
 # Typography — word subtitles
 WORD_FONT = "Arial"
-WORD_FONT_SIZE = 44
+WORD_FONT_SIZE = 64
 WORD_Y_OFFSET = 30      # px below panel bottom edge
 
 # Timing
