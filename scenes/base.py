@@ -18,7 +18,7 @@ MANIM_H = 8.0
 # Panel dimensions — calibrated from ref_001 pixel measurements:
 #   panel rows 38-62% of frame height, center at ~50%
 #   panel cols 10-90% of frame width
-PANEL_CENTER_Y = 0.0          # Manim Y=0 is frame center → panel centered at 50%
+PANEL_CENTER_Y = 0.40         # panel centered at 45% from top (matches ref_001)
 PANEL_UNIT_W   = 3.80         # 3.80 × 240px = 912px wide  (84% of 1080)
 PANEL_UNIT_H   = 2.00         # 2.00 × 240px = 480px tall  (25% of 1920)
 
@@ -38,47 +38,47 @@ class NeonScene(Scene):
         self._draw_panel()
 
     def _draw_panel(self):
-        """Dark warm-tinted panel background with terrain sketch lines."""
-        bg = Rectangle(
-            width=PANEL_UNIT_W + 0.10,
-            height=PANEL_UNIT_H + 0.10,
-        )
-        bg.move_to([0, PANEL_CENTER_Y, 0])
-        bg.set_fill(color=PANEL_BG_HEX, opacity=1.0)
-        bg.set_stroke(opacity=0)
-        self.add(bg)
+        """
+        Terrain lines on pure black — NO background rectangle.
+        The warm glow effect comes from OpenCV post-processing only, matching ref_001.
+        """
+        ground_y = PANEL_CENTER_Y - PANEL_UNIT_H * 0.08
+        terrain  = VGroup()
 
-        # Terrain — horizontal sketch lines crossing the panel
-        ground_y   = PANEL_CENTER_Y - PANEL_UNIT_H * 0.08
-        terrain_grp = VGroup()
-        for i, (offset, op, sw) in enumerate([
-            (0,      0.55, 1.8),
-            (-0.22,  0.22, 1.1),
-            (-0.38,  0.12, 0.9),
-            (-0.52,  0.07, 0.7),
-            ( 0.18,  0.10, 0.8),
-        ]):
-            y = ground_y + offset
-            # Slight waviness per line
+        # Many horizontal sketch lines at varying opacity/width — ref_001 style
+        line_defs = [
+            # (y_offset, opacity, stroke_width, x_scale)
+            ( 0.00,  0.60, 2.0, 1.00),   # main ground line
+            (-0.20,  0.25, 1.2, 0.97),
+            (-0.35,  0.14, 1.0, 0.94),
+            (-0.50,  0.08, 0.8, 0.90),
+            (-0.64,  0.05, 0.7, 0.86),
+            ( 0.16,  0.12, 0.9, 0.96),
+            ( 0.30,  0.06, 0.7, 0.92),
+            (-0.12,  0.18, 1.1, 0.98),
+        ]
+        steps = 40
+        for i, (offset, op, sw, xs) in enumerate(line_defs):
+            y  = ground_y + offset
+            x0 = -PANEL_UNIT_W * 0.50 * xs
+            x1 =  PANEL_UNIT_W * 0.50 * xs
             pts = []
-            steps = 30
-            x0, x1 = -PANEL_UNIT_W * 0.48, PANEL_UNIT_W * 0.48
             for s in range(steps + 1):
                 t  = s / steps
                 x  = x0 + t * (x1 - x0)
-                dy = np.sin(t * TAU * (2 + i * 0.7) + i) * 0.018
-                pts.append([x, y + dy, 0])
+                dy = np.sin(t * TAU * (1.5 + i * 0.6) + i * 1.1) * 0.016
+                pts.append(np.array([x, y + dy, 0]))
             ln = VMobject()
-            ln.set_points_smoothly([np.array(p) for p in pts])
+            ln.set_points_smoothly(pts)
             ln.set_stroke(WHITE, width=sw, opacity=op)
-            terrain_grp.add(ln)
+            terrain.add(ln)
 
-        # A few pebble dots
-        for px, pr, op in [(-1.55, 0.04, 0.25), (0.40, 0.03, 0.20), (1.30, 0.04, 0.22)]:
-            d = Dot([px, ground_y + 0.03, 0], radius=pr, color=WHITE).set_opacity(op)
-            terrain_grp.add(d)
+        # Pebbles
+        for px, pr, op in [(-1.60, 0.04, 0.22), (0.35, 0.03, 0.17), (1.25, 0.04, 0.19)]:
+            terrain.add(Dot([px, ground_y + 0.03, 0], radius=pr,
+                            color=WHITE).set_opacity(op))
 
-        self.add(terrain_grp)
+        self.add(terrain)
 
     # ── Primitive builders ─────────────────────────────────────────────────
 
